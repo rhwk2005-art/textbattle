@@ -68,47 +68,74 @@ app.get('/api/characters', async (req, res) => {
 
 // 🟢 업무 3: 랜덤 배틀 진행 및 AI 판정 (OpenAI 전용으로 교체됨!)
 app.get('/api/battle/random', async (req, res) => {
-  console.log('--- ⚔️ 랜덤 배틀 매칭을 시작합니다 ---');
+  // 1. 창고에서 선수 명단 가져오기
+  const { data: characters, error } = await supabase.from('characters').select('*');
+  if (error || characters.length < 2) {
+    return res.status(400).send('배틀을 진행하려면 최소 2명 이상의 캐릭터가 있어야 합니다.');
+  }
+
+  // 2. 무작위로 두 명 뽑기
+  const shuffled = characters.sort(() => 0.5 - Math.random());
+  const playerA = shuffled[0];
+  const playerB = shuffled[1];
+
+  // 3. ⭐️ AI 심판을 꽉 잡는 아주 엄격한 명령서 (프롬프트 엔지니어링)
+  const prompt = `
+  너는 판타지 세계의 무자비한 배틀 심판이야.
+  다음 두 캐릭터가 목숨을 걸고 싸우는 흥미진진한 소설을 3문단으로 써줘.
+
+  [캐릭터 A]: 이름 - ${playerA.player_name}, 능력 - ${playerA.ability}
+  [캐릭터 B]: 이름 - ${playerB.player_name}, 능력 - ${playerB.ability}
+
+  규칙 1: 둘 중 반드시 한 명만 승리해야 해. 무승부나 화해는 절대 없어.
+  규칙 2: 소설이 다 끝난 후, 맨 마지막 줄에 반드시 아래 형식으로 승자를 지목해. (이 형식은 절대 틀리면 안 돼)
+  [승자: (여기에 이긴 캐릭터 이름)]
+  `;
 
   try {
-    const { data: chars, error } = await supabase.from('characters').select('*');
-    if (error || !chars || chars.length < 2) {
-      return res.status(400).send("배틀을 하려면 창고에 최소 2명 이상의 캐릭터가 있어야 합니다!");
-    }
-
-    const shuffled = chars.sort(() => 0.5 - Math.random());
-    const playerA = shuffled[0];
-    const playerB = shuffled[1];
-
-    console.log(`매칭 완료: ${playerA.player_name} VS ${playerB.player_name}`);
-
-    const prompt = `
-      너는 텍스트 배틀 게임의 공정하고 재치 있는 AI 심판이야.
-      아래 두 캐릭터가 자신의 능력을 사용해 싸운다면 누가 이길지, 어떤 논리로 승부가 날지 3~4줄로 흥미진진한 소설처럼 써줘.
-      절대적인 방어나 무적 같은 억지 능력은 논리적인 맹점을 찔러서 파훼하는 쪽으로 판정해.
-      마지막 줄에는 반드시 "[최종 승자: OOO]" 형식으로 결과를 명시해줘.
-
-      [캐릭터 A] 이름: ${playerA.player_name} / 능력: ${playerA.ability}
-      [캐릭터 B] 이름: ${playerB.player_name} / 능력: ${playerB.ability}
-    `;
-
-    // 🟢 Groq의 Llama 3 심판에게 판정 의뢰
+    // 4. Groq(Llama 3) 심판에게 판정 의뢰
     const response = await openai.chat.completions.create({
-      model: "llama-3.3-70b-versatile", // 🟢 Groq에서 지원하는 빠르고 똑똑한 최신 무료 모델입니다.
+      model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
     });
-    const aiStory = response.choices[0].message.content;
-    console.log('✅ OpenAI 판정 완료!');
-    
+
+    const story = response.choices[0].message.content;
+
+    // 5. ⭐️ 기계(서버)가 AI의 답변에서 괄호를 찾아 승자 판별하기
+    let winnerId = null;
+    if (story.includes(`[승자: ${playerA.player_name}]`)) {
+      winnerId = playerA.id;
+    } else if (story.includes(`[승자: ${playerB.player_name}]`)) {
+      winnerId = playerB.id;
+    }
+
+    // 6. ⭐️ 판정이 끝났으니 창고(DB)에 접속해서 점수 올려주기
+    if (winnerId) {
+      console.log(`승자 확인됨! 창고 전적 업데이트 시작...`);
+      
+      // Player A 점수표 갱신 (참여 횟수 + 1, 만약 승자라면 승리 횟수 + 1)
+      await supabase.from('characters').update({
+        matches: (playerA.matches || 0) + 1,
+        wins: winnerId === playerA.id ? (playerA.wins || 0) + 1 : (playerA.wins || 0)
+      }).eq('id', playerA.id);
+
+      // Player B 점수표 갱신
+      await supabase.from('characters').update({
+        matches: (playerB.matches || 0) + 1,
+        wins: winnerId === playerB.id ? (playerB.wins || 0) + 1 : (playerB.wins || 0)
+      }).eq('id', playerB.id);
+    }
+
+    // 7. 웹페이지에 결과 보내주기
     res.json({
       playerA: playerA.player_name,
       playerB: playerB.player_name,
-      story: aiStory
+      story: story
     });
 
   } catch (err) {
-    console.log('❌ OpenAI 호출 에러:', err);
-    res.status(500).send("AI 심판이 혼란에 빠져 판정을 내리지 못했습니다.");
+    console.error('AI 통신 에러:', err);
+    res.status(500).send('AI 심판이 판정을 내리지 못했습니다.');
   }
 });
 
