@@ -7,11 +7,10 @@
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
         
-        /* 전체 테마: 다크 판타지 */
+        /* 다크 판타지 테마 */
         body { background: radial-gradient(circle at 15% 50%, #1a1a2e, #0f0f1a, #050505); color: #f1f5f9; font-family: 'Pretendard', sans-serif; max-width: 850px; margin: 0 auto; padding: 50px 20px; line-height: 1.6; }
         h1, h2 { text-align: center; background: linear-gradient(135deg, #a855f7, #ec4899, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; letter-spacing: -1px; margin-bottom: 30px; }
         
-        /* 섹션 스타일링 */
         #authSection, #battleArena, #gameSection { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(16px); border-radius: 24px; padding: 40px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); margin-bottom: 30px; }
         
         input { width: 100%; padding: 16px; margin: 8px 0 24px; background-color: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.1); color: white; border-radius: 12px; font-size: 16px; outline: none; box-sizing: border-box; }
@@ -19,11 +18,10 @@
         button:hover { transform: translateY(-4px); box-shadow: 0 10px 25px rgba(236, 72, 153, 0.4); }
         .secondary-btn { background: rgba(255, 255, 255, 0.1); box-shadow: none; }
         
-        /* 캐릭터 카드 그리드 */
         #characterList { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; margin-top: 20px; }
         .char-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 20px; border-radius: 20px; text-align: center; backdrop-filter: blur(10px); transition: 0.3s; position: relative; }
         
-        /* 전설 카드: 황금빛 아우라 애니메이션 */
+        /* 전설 카드: 황금 애니메이션 */
         @keyframes goldShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
         .legend-card { background: linear-gradient(110deg, #1a1a2e 30%, #facc15 45%, #fbbf24 50%, #facc15 55%, #1a1a2e 70%) !important; background-size: 200% 100% !important; animation: goldShimmer 3s infinite linear; border: 2px solid #facc15 !important; box-shadow: 0 0 30px rgba(250, 204, 21, 0.4) !important; }
         
@@ -69,18 +67,15 @@
         </div>
 
         <button onclick="startRandomBattle()" class="secondary-btn" style="background: #1e1e2f; border: 1px solid #ff4757; color: #ff4757;">🔥 무작위 난투 시작! 🔥</button>
-        
         <div id="battleArena" style="display:none; margin-top:30px;"></div>
         <div id="characterList">용사들을 불러오는 중...</div>
     </div>
 
     <script>
-        // Supabase 설정 (본인의 정보로 유지)
         const supabaseUrl = 'https://cjtshlrvuhhjmrlksohi.supabase.co'; 
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdHNobHJ2dWhoam1ybGtzb2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MTc3MzEsImV4cCI6MjA4ODA5MzczMX0.ANiPuMSvCW7C8ybJNXU1BhpG1tO18VKGYbxXUrfWVKM'; 
         const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-        // 인증 상태 감시
         supabaseClient.auth.onAuthStateChange((event, session) => {
             if (session) {
                 document.getElementById('authSection').style.display = 'none';
@@ -93,7 +88,6 @@
             }
         });
 
-        // 칭호 부여 로직
         function getTitleBadge(streak) {
             if (streak >= 50) return '<span style="color: #facc15;">👑 전설</span> ';
             if (streak >= 30) return '<span style="color: #c084fc;">⚔️ 파괴왕</span> ';
@@ -101,39 +95,17 @@
             return '<span style="color: #4ade80;">🌱 훈련병</span> ';
         }
 
-        // 캐릭터 목록 로드 (이미지 & 성장 포인트 포함)
+        /* 🛠️ 정확하게 수정한 loadCharacters 함수 */
         async function loadCharacters() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             const myId = session ? session.user.id : null;
             const response = await fetch('/api/characters');
             let characters = await response.json();
 
+            // 필터링 처리
             const isMyOnly = document.getElementById('myFilter').checked;
             if (isMyOnly && myId) {
                 characters = characters.filter(char => char.owner_id === myId);
-                listDiv.innerHTML += `
-    <div class="${cardClass}">
-        <img src="${char.image_url}" class="char-img">
-        <h3>${getTitleBadge(streak)}${char.player_name}</h3>
-        
-        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
-            ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
-        </div>
-
-        <div style="margin:10px 0; background:#222; border-radius:20px; padding:5px; border:1px solid #444;">
-            <div style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; margin-bottom:3px;">
-                <span>Lv.${Math.floor(gp / 10)}</span>
-                <span>${gp} EP</span>
-            </div>
-            <div style="background:#111; height:8px; border-radius:4px; overflow:hidden;">
-                <div style="background:linear-gradient(90deg, #4f46e5, #10b981); width:${Math.min(gp, 100)}%; height:100%;"></div>
-            </div>
-        </div>
-        
-        <p style="font-size:13px; color:#94a3b8;">능력: ${isOwner ? char.ability : '비공개'}</p>
-        ${buttons}
-    </div>
-`;
             }
 
             // 명예의 전당 업데이트
@@ -151,15 +123,14 @@
                 }
             });
 
-            // 카드 리스트 업데이트
+            // 카드 리스트 업데이트 (반복문 위치 수정 완료)
             const listDiv = document.getElementById('characterList');
-            listDiv.innerHTML = '';
+            listDiv.innerHTML = ''; 
+
             characters.forEach(char => {
                 const gp = char.growth_points || 0;
                 const streak = char.win_streak || 0;
                 const isOwner = myId === char.owner_id;
-                
-                // 전설 등급 판정: 50연승 또는 100포인트
                 const cardClass = (streak >= 50 || gp >= 100) ? 'char-card legend-card' : 'char-card';
                 
                 const buttons = isOwner ? `
@@ -169,9 +140,13 @@
 
                 listDiv.innerHTML += `
                     <div class="${cardClass}">
-                        <img src="${char.image_url || 'https://pollinations.ai/p/fantasy-warrior?width=512&height=512'}" class="char-img" alt="Warrior">
+                        <img src="${char.image_url || 'https://pollinations.ai/p/fantasy-warrior?width=512&height=512'}" class="char-img">
                         <h3>${getTitleBadge(streak)}${char.player_name}</h3>
                         
+                        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
+                            ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
+                        </div>
+
                         <div style="margin:15px 0; background:#222; border-radius:20px; padding:5px; border:1px solid #444;">
                             <div style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; margin-bottom:3px; padding:0 5px;">
                                 <span>Lv.${Math.floor(gp / 10)}</span>
@@ -183,14 +158,12 @@
                         </div>
 
                         <p style="font-size:13px; color:#94a3b8; margin:5px 0;">능력: ${isOwner ? char.ability : '비공개'}</p>
-                        <div style="font-size:12px; color:#666;">🔥 현재 ${streak}연승 중</div>
                         ${buttons}
                     </div>
                 `;
             });
         }
 
-        // 배틀 로직 및 타이핑 효과
         async function startRandomBattle() {
             const arena = document.getElementById('battleArena');
             arena.style.display = 'block';
@@ -227,7 +200,6 @@
             type();
         }
 
-        // 인증 처리 함수들
         async function handleSignup() {
             const { error } = await supabaseClient.auth.signUp({ email: emailInput.value, password: passwordInput.value });
             authMessage.innerText = error ? '오류: ' + error.message : '이메일 확인 후 로그인해 주세요!';
@@ -238,7 +210,7 @@
         }
         async function handleLogout() { await supabaseClient.auth.signOut(); }
         async function deleteCharacter(id) {
-            if (confirm("정말로 이 용사를 은퇴시키겠습니까? 모든 전적이 사라집니다.")) {
+            if (confirm("은퇴시키겠습니까?")) {
                 await fetch(`/api/characters/${id}`, { method: 'DELETE' });
                 loadCharacters();
             }
