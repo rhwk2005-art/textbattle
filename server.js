@@ -82,7 +82,7 @@ app.get('/api/battle/random', async (req, res) => {
   // 3. ⭐️ AI 심판을 꽉 잡는 아주 엄격한 명령서 (프롬프트 엔지니어링)
   const prompt = `
   너는 판타지 세계의 무자비한 배틀 심판이야.
-  다음 두 캐릭터가 목숨을 걸고 싸우는 흥미진진한 소설을 3문단으로 써줘.
+  다음 두 캐릭터가 목숨을 걸고 싸우는 흥미진진한 소설을 2문단으로 써줘.
 
   [캐릭터 A]: 이름 - ${playerA.player_name}, 능력 - ${playerA.ability}
   [캐릭터 B]: 이름 - ${playerB.player_name}, 능력 - ${playerB.ability}
@@ -136,6 +136,69 @@ app.get('/api/battle/random', async (req, res) => {
   } catch (err) {
     console.error('AI 통신 에러:', err);
     res.status(500).send('AI 심판이 판정을 내리지 못했습니다.');
+  }
+});
+
+// 🟢 업무 5: 선택형 배틀 매칭 (내 캐릭터 출전시키기)
+app.get('/api/battle/challenge/:id', async (req, res) => {
+  const challengerId = req.params.id; // 프론트엔드에서 보낸 내 캐릭터 번호
+
+  // 1. 도전자(내 캐릭터) 정보 창고에서 꺼내오기
+  const { data: challengerData, error: err1 } = await supabase.from('characters').select('*').eq('id', challengerId).single();
+  if (err1 || !challengerData) return res.status(400).send('캐릭터 정보를 찾을 수 없습니다.');
+
+  // 2. 적군 무작위 1명 뽑기 (나 자신은 제외!)
+  const { data: opponents, error: err2 } = await supabase.from('characters').select('*').neq('id', challengerId);
+  if (err2 || opponents.length === 0) return res.status(400).send('싸울 상대가 없습니다. 샌드백용 캐릭터를 하나 더 만들어주세요.');
+  
+  // 적군 배열에서 랜덤으로 1명 추첨
+  const opponentData = opponents[Math.floor(Math.random() * opponents.length)];
+
+  // 3. AI 심판 호출 (기존과 동일한 룰 적용)
+  const prompt = `
+  너는 판타지 세계의 무자비한 배틀 심판이야.
+  다음 두 캐릭터가 목숨을 걸고 싸우는 흥미진진한 소설을 3문단으로 써줘.
+
+  [도전자]: 이름 - ${challengerData.player_name}, 능력 - ${challengerData.ability}
+  [방어자]: 이름 - ${opponentData.player_name}, 능력 - ${opponentData.ability}
+
+  규칙 1: 둘 중 반드시 한 명만 승리해야 해. 무승부나 화해는 절대 없어.
+  규칙 2: 소설이 다 끝난 후, 맨 마지막 줄에 반드시 아래 형식으로 승자를 지목해. (이 형식은 절대 틀리면 안 돼)
+  [승자: (여기에 이긴 캐릭터 이름)]
+  `;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const story = response.choices[0].message.content;
+
+    // 4. 승자 판별
+    let winnerId = null;
+    if (story.includes(`[승자: ${challengerData.player_name}]`)) winnerId = challengerData.id;
+    else if (story.includes(`[승자: ${opponentData.player_name}]`)) winnerId = opponentData.id;
+
+    // 5. 창고 전적표 업데이트
+    if (winnerId) {
+      // 도전자 점수 갱신
+      await supabase.from('characters').update({
+        matches: (challengerData.matches || 0) + 1,
+        wins: winnerId === challengerData.id ? (challengerData.wins || 0) + 1 : (challengerData.wins || 0)
+      }).eq('id', challengerData.id);
+
+      // 방어자 점수 갱신
+      await supabase.from('characters').update({
+        matches: (opponentData.matches || 0) + 1,
+        wins: winnerId === opponentData.id ? (opponentData.wins || 0) + 1 : (opponentData.wins || 0)
+      }).eq('id', opponentData.id);
+    }
+
+    res.json({ playerA: challengerData.player_name, playerB: opponentData.player_name, story: story });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('AI 심판 통신 에러가 발생했습니다.');
   }
 });
 
