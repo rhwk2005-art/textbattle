@@ -104,5 +104,26 @@ app.get('/api/battle/challenge/:id', async (req, res) => {
     }
 });
 
+// [새로 추가할 코드: 아이콘 404 에러 무시]
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// 🗑️ 캐릭터 은퇴(삭제) API
+app.delete('/api/characters/:id', async (req, res) => {
+    const characterId = req.params.id;
+
+    try {
+        const { error } = await supabase
+            .from('characters')
+            .delete()
+            .eq('id', characterId);
+
+        if (error) throw error;
+        res.json({ message: "성공적으로 은퇴 처리되었습니다." });
+    } catch (err) {
+        console.error("삭제 중 오류:", err);
+        res.status(500).json({ error: "삭제 실패" });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`서버가 ${PORT}번 포트에서 전장을 감시 중...`));
