@@ -46,7 +46,7 @@ app.get('/api/characters', async (req, res) => {
 
 // 3. 배틀 로직 (포인트 정산 포함)
 async function runBattle(playerA, playerB) {
-    const prompt = `판타지 배틀 심판으로서 소설을 써줘.
+    const prompt = `판타지 배틀 심판으로서 승부의 과정을 작성해줘.
     [캐릭터 A]: ${playerA.player_name} (능력: ${playerA.ability}, 강화: ${playerA.growth_points}EP)
     [캐릭터 B]: ${playerB.player_name} (능력: ${playerB.ability}, 강화: ${playerB.growth_points}EP)
     규칙: 반드시 한 명의 승자를 정하고 마지막에 [승자: 이름]을 적어줘.`;
@@ -61,6 +61,16 @@ async function runBattle(playerA, playerB) {
     
     const winner = winnerName === playerA.player_name ? playerA : playerB;
     const loser = winnerName === playerA.player_name ? playerB : playerA;
+
+    const { error } = await supabase.rpc('process_battle_result', { 
+        winner_id: winner.id, 
+        loser_id: loser.id 
+    });
+
+    if (error) console.error("기록 실패:", error);
+
+    return { playerA: playerA.player_name, playerB: playerB.player_name, story };
+}
 
     // 📈 포인트 정산 (RPC 함수 사용)
     await supabase.rpc('update_warrior_points', { row_id: winner.id, amount: 5 });
@@ -77,6 +87,41 @@ app.get('/api/battle/random', async (req, res) => {
     let p2 = data[Math.floor(Math.random() * data.length)];
     while(p1.id === p2.id) p2 = data[Math.floor(Math.random() * data.length)];
     res.json(await runBattle(p1, p2));
+});
+
+// ⚔️ 특정 전사로 출격하기 (Challenge Mode)
+app.get('/api/battle/challenge/:id', async (req, res) => {
+    const challengerId = req.params.id; // 내가 선택한 전사의 ID
+
+    try {
+        // 1. 내가 선택한 전사 정보 가져오기
+        const { data: challenger, error: err1 } = await supabase
+            .from('characters')
+            .select('*')
+            .eq('id', challengerId)
+            .single();
+
+        if (err1 || !challenger) throw new Error("도전자를 찾을 수 없습니다.");
+
+        // 2. 상대방(무작위 1명) 고르기 (나 자신 제외)
+        const { data: opponents, error: err2 } = await supabase
+            .from('characters')
+            .select('*')
+            .neq('id', challengerId);
+
+        if (err2 || opponents.length === 0) throw new Error("상대할 전사가 없습니다.");
+        const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
+
+        // 3. 전투 시작! (기존 runBattle 함수 재사용)
+        const battleResult = await runBattle(challenger, randomOpponent);
+        
+        // 4. 결과 반환
+        res.json(battleResult);
+
+    } catch (err) {
+        console.error("전투 중 오류 발생:", err);
+        res.status(500).json({ story: "전투장에 문제가 발생했습니다: " + err.message });
+    }
 });
 
 const PORT = process.env.PORT || 3000;

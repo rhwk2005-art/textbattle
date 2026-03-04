@@ -111,6 +111,29 @@
             const isMyOnly = document.getElementById('myFilter').checked;
             if (isMyOnly && myId) {
                 characters = characters.filter(char => char.owner_id === myId);
+                listDiv.innerHTML += `
+    <div class="${cardClass}">
+        <img src="${char.image_url}" class="char-img">
+        <h3>${getTitleBadge(streak)}${char.player_name}</h3>
+        
+        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
+            ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
+        </div>
+
+        <div style="margin:10px 0; background:#222; border-radius:20px; padding:5px; border:1px solid #444;">
+            <div style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; margin-bottom:3px;">
+                <span>Lv.${Math.floor(gp / 10)}</span>
+                <span>${gp} EP</span>
+            </div>
+            <div style="background:#111; height:8px; border-radius:4px; overflow:hidden;">
+                <div style="background:linear-gradient(90deg, #4f46e5, #10b981); width:${Math.min(gp, 100)}%; height:100%;"></div>
+            </div>
+        </div>
+        
+        <p style="font-size:13px; color:#94a3b8;">능력: ${isOwner ? char.ability : '비공개'}</p>
+        ${buttons}
+    </div>
+`;
             }
 
             // 명예의 전당 업데이트
