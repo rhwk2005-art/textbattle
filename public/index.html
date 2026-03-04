@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 텍스트 배틀 게임</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        body { background-color: #121212; color: #ffffff; font-family: 'Noto Sans KR', sans-serif; max-width: 800px; margin: 0 auto; padding: 30px 20px; }
+        h1, h2 { text-align: center; color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); margin-bottom: 20px; }
+        input[type="text"], input[type="email"], input[type="password"] { width: 100%; padding: 12px; margin: 8px 0 20px; background-color: #1e1e2f; border: 1px solid #ff4757; color: white; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 15px; margin-bottom: 10px; font-size: 20px; font-weight: 900; background-color: #ff4757; color: white; border: none; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4); }
+        button:hover { background-color: #ff6b81; transform: translateY(-3px); box-shadow: 0 6px 20px rgba(255, 71, 87, 0.6); }
+        .secondary-btn { background-color: #333; border: 1px solid #555; box-shadow: none; }
+        .secondary-btn:hover { background-color: #444; }
+        #battleArena { margin-top: 30px; padding: 25px; border: 2px solid #ff4757; background: linear-gradient(135deg, #1e1e2f 0%, #121212 100%); border-radius: 12px; box-shadow: 0 0 20px rgba(255, 71, 87, 0.2); font-size: 16px; line-height: 1.8; display: none; }
+        #characterList { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        .char-card { background-color: #1e1e2f; border: 1px solid #333; padding: 15px; border-radius: 10px; text-align: center; transition: transform 0.2s; }
+        .char-card:hover { transform: scale(1.05); border-color: #ff4757; }
+    </style>
+</head>
+<body>
+
+    <div id="authSection">
+        <h1>입장소 (로그인)</h1>
+        <p style="text-align: center; color: #ccc;">전장에 참여하려면 신분을 증명하십시오.</p>
+        <input type="email" id="emailInput" placeholder="이메일 주소">
+        <input type="password" id="passwordInput" placeholder="비밀번호 (6자리 이상)">
+        <button onclick="handleLogin()">🚀 로그인</button>
+        <button class="secondary-btn" onclick="handleSignup()">📝 새로 가입하기</button>
+        <div id="authMessage" style="color: #ff4757; text-align: center; margin-top: 10px;"></div>
+    </div>
+
+    <div id="gameSection" style="display: none;">
+        <div style="text-align: right;">
+            <span id="currentUserEmail" style="color: #aaa; margin-right: 15px;"></span>
+            <button class="secondary-btn" onclick="handleLogout()" style="width: auto; padding: 8px 15px; font-size: 14px;">로그아웃</button>
+        </div>
+        <h1>⚔️ 나만의 전사 만들기</h1>
+        <form action="/battle" method="POST">
+            <input type="hidden" id="ownerIdInput" name="ownerId">
+            <label>캐릭터 이름</label>
+            <input type="text" name="playerName" required placeholder="예: 어둠의 암살자">
+            <label>특수 능력</label>
+            <input type="text" name="ability" required placeholder="예: 그림자 속에 숨어 치명타를 가함">
+            <button type="submit">전사 등록하기</button>
+        </form>
+        <hr style="border-color: #333; margin: 40px 0;">
+        <h2>⚔️ 랜덤 텍스트 배틀</h2>
+        <button onclick="startRandomBattle()">🔥 랜덤 배틀 시작! 🔥</button>
+        <div id="battleArena">결과가 이곳에 표시됩니다.</div>
+        <hr style="border-color: #333; margin: 40px 0;">
+        <h2>🏆 현재 등록된 참전 용사들</h2>
+        <div id="characterList">데이터를 불러오는 중...</div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://cjtshlrvuhhjmrlksohi.supabase.co'; // ⭐️ 본인 URL 입력
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdHNobHJ2dWhoam1ybGtzb2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MTc3MzEsImV4cCI6MjA4ODA5MzczMX0.ANiPuMSvCW7C8ybJNXU1BhpG1tO18VKGYbxXUrfWVKM'; // ⭐️ 본인 Key 입력
+        
+        // 🟢 이름표 충돌을 막기 위해 supabase -> supabaseClient 로 이름을 바꿨습니다!
+        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        const authSection = document.getElementById('authSection');
+        const gameSection = document.getElementById('gameSection');
+        const authMessage = document.getElementById('authMessage');
+
+        // 모든 통신 명령어에 supabaseClient 를 사용합니다.
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                authSection.style.display = 'none';
+                gameSection.style.display = 'block';
+                document.getElementById('currentUserEmail').innerText = '접속자: ' + session.user.email;
+                document.getElementById('ownerIdInput').value = session.user.id;
+                loadCharacters();
+            } else {
+                authSection.style.display = 'block';
+                gameSection.style.display = 'none';
+            }
+        });
+
+        async function handleSignup() {
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const { data, error } = await supabaseClient.auth.signUp({ email, password });
+            if (error) authMessage.innerText = '가입 에러: ' + error.message;
+            else authMessage.innerText = '가입 성공! 이제 로그인 버튼을 눌러주세요.';
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) authMessage.innerText = '로그인 실패. 아이디나 비밀번호를 확인하세요.';
+        }
+
+        async function handleLogout() {
+            await supabaseClient.auth.signOut();
+        }
+
+        async function startRandomBattle() {
+            const arena = document.getElementById('battleArena');
+            arena.style.display = 'block';
+            arena.innerHTML = '<h3>⏳ 매칭 중... AI 심판이 승패를 분석하고 있습니다!</h3>';
+            try {
+                const response = await fetch('/api/battle/random');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    arena.innerHTML = `<h3 style="color:#ff4757;">❌ ${errorText}</h3>`;
+                    return;
+                }
+                const result = await response.json();
+                const formattedStory = result.story.replace(/\n/g, '<br>');
+                arena.innerHTML = `
+                    <h2 style="color: #ff4757;">⚔️ ${result.playerA} VS ${result.playerB} ⚔️</h2>
+                    <div style="font-size: 16px; line-height: 1.6; background-color: #1e1e2f; padding: 15px; border-radius: 8px;">
+                        ${formattedStory}
+                    </div>
+                `;
+            } catch (error) {
+                arena.innerHTML = '<h3 style="color:#ff4757;">통신 오류가 발생했습니다.</h3>';
+            }
+        }
+
+        // [수정됨] 캐릭터 명부 불러오기 (능력치 비공개 기능 추가)
+        async function loadCharacters() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const myId = session ? session.user.id : null;
+
+            const response = await fetch('/api/characters');
+            const characters = await response.json();
+            const listDiv = document.getElementById('characterList');
+            listDiv.innerHTML = '';
+
+            characters.forEach(char => {
+                
+                let deleteBtn = '';
+                let displayAbility = '<span style="color: #ff4757;">??? (비공개)</span>'; // 🟢 기본값: 남의 것은 무조건 가림
+
+                // 🟢 검사: 이 캐릭터의 주인이 '나'라면?
+                if (myId === char.owner_id) {
+                    displayAbility = char.ability; // 진짜 능력을 보여줌
+                    deleteBtn = `<button onclick="deleteCharacter(${char.id})" style="background-color:#555; padding:8px; font-size:14px; margin-top:10px; width:100%;">🗑️ 내 전사 은퇴시키기</button>`;
+                }
+
+                // 화면에 그려질 캐릭터 카드 HTML
+                const charCard = `
+                    <div class="char-card">
+                        <h3 style="color:#ff4757; margin-top:0;">👤 ${char.player_name}</h3>
+                        <p style="font-size:14px; color:#ccc;"><strong>능력:</strong> ${displayAbility}</p>
+                        ${deleteBtn}
+                    </div>
+                `;
+                listDiv.innerHTML += charCard;
+            });
+        }
+
+        // 🟢 [새로 추가됨] 삭제 버튼을 눌렀을 때 실행되는 기능
+        async function deleteCharacter(charId) {
+            // 실수로 누를 수 있으니 한 번 더 물어보기
+            if (!confirm("정말 이 전사를 은퇴시키겠습니까? 복구할 수 없습니다!")) return;
+
+            // 서버의 파쇄기(DELETE)로 삭제 요청 보내기
+            await fetch(`/api/characters/${charId}`, { method: 'DELETE' });
+            
+            // 삭제가 끝났으면 화면을 새로고침해서 명부 다시 그리기
+            loadCharacters(); 
+        }
+    </script>
+</body>
+</html>
