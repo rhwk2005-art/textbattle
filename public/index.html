@@ -101,27 +101,59 @@
             await supabaseClient.auth.signOut();
         }
 
+        // 무작위 배틀 시작 (타이핑 애니메이션 효과)
         async function startRandomBattle() {
             const arena = document.getElementById('battleArena');
             arena.style.display = 'block';
-            arena.innerHTML = '<h3>⏳ 매칭 중... AI 심판이 승패를 분석하고 있습니다!</h3>';
+            
+            // 로딩 메시지도 트렌디하게 변경!
+            arena.innerHTML = '<h3 style="color: #a855f7; text-align: center;">⏳ 차원의 문을 여는 중... AI 심판이 판정을 준비하고 있습니다!</h3>';
+
             try {
                 const response = await fetch('/api/battle/random');
                 if (!response.ok) {
                     const errorText = await response.text();
-                    arena.innerHTML = `<h3 style="color:#ff4757;">❌ ${errorText}</h3>`;
+                    arena.innerHTML = `<h3 style="color:#ef4444;">❌ ${errorText}</h3>`;
                     return;
                 }
+                
                 const result = await response.json();
-                const formattedStory = result.story.replace(/\n/g, '<br>');
+                
+                // 1. 배틀 결과창의 뼈대(제목과 글자가 찍힐 빈 박스)를 먼저 화면에 그립니다.
                 arena.innerHTML = `
-                    <h2 style="color: #ff4757;">⚔️ ${result.playerA} VS ${result.playerB} ⚔️</h2>
-                    <div style="font-size: 16px; line-height: 1.6; background-color: #1e1e2f; padding: 15px; border-radius: 8px;">
-                        ${formattedStory}
-                    </div>
+                    <h2 style="text-align: center; background: linear-gradient(135deg, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 20px;">
+                        ⚔️ ${result.playerA} VS ${result.playerB} ⚔️
+                    </h2>
+                    <div id="storyBox" style="font-size: 16px; line-height: 1.8; background: rgba(0, 0, 0, 0.3); padding: 25px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); min-height: 150px;"></div>
                 `;
+
+                // 2. 글자가 찍힐 빈 공간(storyBox)과 전체 소설(fullText)을 준비합니다.
+                const storyBox = document.getElementById('storyBox');
+                const fullText = result.story;
+                let currentLetterIndex = 0; // 현재 몇 번째 글자를 찍고 있는지 기억하는 숫자
+
+                // 3. 타이핑 애니메이션 마법 (재귀 함수)
+                function typeNextLetter() {
+                    if (currentLetterIndex < fullText.length) {
+                        // 엔터키(\n)를 만나면 웹용 줄바꿈(<br>)으로 바꿔주고, 아니면 글자를 그대로 출력
+                        const char = fullText.charAt(currentLetterIndex);
+                        storyBox.innerHTML += (char === '\n') ? '<br>' : char;
+                        
+                        currentLetterIndex++;
+                        
+                        // 0.02초(20ms) 뒤에 다음 글자를 찍으라고 예약 (이 숫자를 조절해 속도 변경 가능!)
+                        setTimeout(typeNextLetter, 5); 
+                    } else {
+                        // 🟢 하이라이트: 소설 타이핑이 끝나는 순간, 명부와 랭킹을 새로고침! (극적인 점수 반영)
+                        loadCharacters();
+                    }
+                }
+
+                // 타이핑 마법 시작!
+                typeNextLetter();
+
             } catch (error) {
-                arena.innerHTML = '<h3 style="color:#ff4757;">통신 오류가 발생했습니다.</h3>';
+                arena.innerHTML = '<h3 style="color:#ef4444;">통신 오류가 발생했습니다.</h3>';
             }
         }
 
@@ -181,9 +213,14 @@
                 const wins = char.wins || 0;
                 const winRate = matches > 0 ? Math.round((wins / matches) * 100) : 0;
 
+                // (index.html 내 loadCharacters 함수 안쪽 부분)
                 if (myId === char.owner_id) {
                     displayAbility = char.ability;
-                    deleteBtn = `<button onclick="deleteCharacter(${char.id})" style="background:rgba(255,255,255,0.1); padding:10px; font-size:14px; margin-top:15px; width:100%; box-shadow:none;">🗑️ 내 전사 은퇴시키기</button>`;
+                    // 🟢 기존 은퇴 버튼 위에 [출전 버튼]을 화려하게 추가합니다!
+                    deleteBtn = `
+                        <button onclick="startChallenge(${char.id})" style="background:linear-gradient(135deg, #3b82f6, #8b5cf6); padding:12px; font-size:16px; margin-top:15px; width:100%; border-radius:8px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">⚔️ 이 전사로 출전하기</button>
+                        <button onclick="deleteCharacter(${char.id})" style="background:rgba(255,255,255,0.1); padding:10px; font-size:14px; margin-top:8px; width:100%; box-shadow:none;">🗑️ 내 전사 은퇴시키기</button>
+                    `;
                 }
 
                 const charCard = `
@@ -208,6 +245,56 @@
             if (!confirm("정말 이 전사를 은퇴시키겠습니까? 복구할 수 없습니다!")) return;
             await fetch(`/api/characters/${charId}`, { method: 'DELETE' });
             loadCharacters(); 
+        }
+
+        // 🟢 [새로 추가] 내 캐릭터를 직접 출전시키는 함수
+        async function startChallenge(charId) {
+            const arena = document.getElementById('battleArena');
+            arena.style.display = 'block';
+            
+            // 전장으로 화면을 부드럽게 스크롤해주는 센스있는 기능
+            arena.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            arena.innerHTML = '<h3 style="color: #3b82f6; text-align: center;">🚀 전장으로 이동 중... 맞붙을 상대를 탐색하고 있습니다!</h3>';
+
+            try {
+                // 방금 백엔드에 만든 지정 배틀 주소로 요청을 보냅니다.
+                const response = await fetch(`/api/battle/challenge/${charId}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    arena.innerHTML = `<h3 style="color:#ef4444;">❌ ${errorText}</h3>`;
+                    return;
+                }
+                
+                const result = await response.json();
+                
+                // 파란색 톤의 제목으로 '내가 선택한 배틀'임을 강조합니다.
+                arena.innerHTML = `
+                    <h2 style="text-align: center; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 20px;">
+                        ⚔️ ${result.playerA}(나) VS ${result.playerB}(적) ⚔️
+                    </h2>
+                    <div id="storyBox" style="font-size: 16px; line-height: 1.8; background: rgba(0, 0, 0, 0.3); padding: 25px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); min-height: 150px;"></div>
+                `;
+
+                const storyBox = document.getElementById('storyBox');
+                const fullText = result.story;
+                let currentLetterIndex = 0;
+
+                function typeNextLetter() {
+                    if (currentLetterIndex < fullText.length) {
+                        const char = fullText.charAt(currentLetterIndex);
+                        storyBox.innerHTML += (char === '\n') ? '<br>' : char;
+                        currentLetterIndex++;
+                        setTimeout(typeNextLetter, 20); 
+                    } else {
+                        loadCharacters(); // 배틀 종료 시 전적 새로고침
+                    }
+                }
+                typeNextLetter();
+
+            } catch (error) {
+                arena.innerHTML = '<h3 style="color:#ef4444;">통신 오류가 발생했습니다.</h3>';
+            }
         }
     </script>
 </body>
