@@ -2,191 +2,53 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>AI 텍스트 배틀 게임</title>
+    <title>AI 텍스트 배틀: 전설의 서막</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        body { background: radial-gradient(circle at 15% 50%, #1a1a2e, #0f0f1a, #050505); color: #f1f5f9; font-family: 'Pretendard', sans-serif; max-width: 850px; margin: 0 auto; padding: 50px 20px; line-height: 1.6; }
-        h1, h2 { text-align: center; background: linear-gradient(135deg, #a855f7, #ec4899, #ef4444); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; letter-spacing: -1px; margin-bottom: 30px; }
-        #authSection, #battleArena { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 24px; padding: 40px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); margin-bottom: 30px; }
-        input[type="email"], input[type="password"] { width: 100%; padding: 16px; margin: 8px 0 24px; background-color: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.1); color: white; border-radius: 12px; font-size: 16px; outline: none; }
-        button { width: 100%; padding: 16px; margin-bottom: 12px; font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #ec4899, #ef4444); color: white; border: none; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; }
-        button:hover { transform: translateY(-4px); box-shadow: 0 10px 25px rgba(236, 72, 153, 0.4); }
-        .secondary-btn { background: rgba(255, 255, 255, 0.1); box-shadow: none; }
-        #characterList { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; margin-top: 20px; }
-        .char-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); padding: 24px; border-radius: 20px; text-align: center; backdrop-filter: blur(10px); transition: 0.3s; }
-        
-        @keyframes goldShimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .legend-card { background: linear-gradient(110deg, #1a1a2e 30%, #facc15 45%, #fbbf24 50%, #facc15 55%, #1a1a2e 70%) !important; background-size: 200% 100% !important; animation: goldShimmer 3s infinite linear; border: 2px solid #facc15 !important; box-shadow: 0 0 30px rgba(250, 204, 21, 0.4) !important; }
-    </style>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
     <div id="authSection">
-        <h1>입장소 (로그인)</h1>
+        <h1>⚔️ 전설의 시작</h1>
         <input type="email" id="emailInput" placeholder="이메일 주소">
         <input type="password" id="passwordInput" placeholder="비밀번호">
-        <button onclick="handleLogin()">🚀 로그인</button>
-        <button class="secondary-btn" onclick="handleSignup()">📝 새로 가입하기</button>
+        <button onclick="handleLogin()">🚀 전장 입장</button>
+        <button class="secondary-btn" onclick="handleSignup()">📝 새로운 용사 가입</button>
         <div id="authMessage" style="color: #ff4757; text-align: center; margin-top: 10px;"></div>
     </div>
 
     <div id="gameSection" style="display: none;">
         <div style="background: rgba(236, 72, 153, 0.05); padding: 30px; border-radius: 20px; border: 1px solid rgba(236, 72, 153, 0.2); margin-bottom: 40px;">
-            <h2>🏆 명예의 전당 (Top 3)</h2>
+            <h2>🏆 명예의 전당</h2>
             <div id="hallOfFame" style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;"></div>
         </div>
 
         <div style="text-align: right; margin-bottom: 20px;">
-            <span id="currentUserEmail" style="color: #aaa; margin-right: 15px;"></span>
-            <button class="secondary-btn" onclick="handleLogout()" style="width: auto; padding: 8px 15px; font-size: 14px;">로그아웃</button>
+            <span id="currentUserEmail" style="color: #aaa; margin-right: 15px; font-size: 14px;"></span>
+            <button class="secondary-btn" onclick="handleLogout()" style="width: auto; padding: 8px 15px; font-size: 12px;">로그아웃</button>
         </div>
 
         <div style="text-align: center; margin-bottom: 40px;">
-            <a href="/create.html" style="display: inline-block; padding: 20px 40px; background: linear-gradient(135deg, #ec4899, #ef4444); color: white; text-decoration: none; border-radius: 15px; font-size: 20px; font-weight: 800; box-shadow: 0 10px 20px rgba(236, 72, 153, 0.3); transition: 0.3s;">
-                ➕ 새로운 전사 등록하러 가기
+            <a href="/create.html" style="display: inline-block; padding: 18px 36px; background: linear-gradient(135deg, #ec4899, #ef4444); color: white; text-decoration: none; border-radius: 15px; font-size: 18px; font-weight: 800; box-shadow: 0 10px 20px rgba(236, 72, 153, 0.3); transition: 0.3s;">
+                ➕ 새로운 전사 소환하기
             </a>
         </div>
 
-        <hr style="border-color: #333; margin: 40px 0;">
+        <hr style="border: 0; border-top: 1px solid #333; margin: 40px 0;">
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 style="margin: 0;">🛡️ 참전 용사들</h2>
+            <h2 style="margin: 0;">🛡️ 참전 용사 군단</h2>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="myFilter" style="color: #94a3b8; font-size: 14px; cursor: pointer;">내 캐릭터만 보기</label>
-                <input type="checkbox" id="myFilter" onchange="loadCharacters()" style="width: 20px; height: 20px; cursor: pointer; accent-color: #ec4899;">
+                <label for="myFilter" style="color: #94a3b8; font-size: 14px; cursor: pointer;">나의 전사만 보기</label>
+                <input type="checkbox" id="myFilter" onchange="loadCharacters()" style="width: 18px; height: 18px; cursor: pointer; accent-color: #ec4899; margin:0;">
             </div>
         </div>
 
-        <button onclick="startRandomBattle()" class="secondary-btn" style="background: #1e1e2f; border: 1px solid #ff4757;">🔥 랜덤 배틀 시작! 🔥</button>
+        <button onclick="startRandomBattle()" class="secondary-btn" style="background: #1e1e2f; border: 1px solid #ff4757; color: #ff4757;">🔥 무작위 난투 시작! 🔥</button>
         <div id="battleArena" style="display:none; margin-top:30px;"></div>
-        <div id="characterList">데이터를 불러오는 중...</div>
+        <div id="characterList">용사들을 불러오는 중...</div>
     </div>
 
-    <script>
-        const supabaseUrl = 'https://cjtshlrvuhhjmrlksohi.supabase.co'; 
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdHNobHJ2dWhoam1ybGtzb2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MTc3MzEsImV4cCI6MjA4ODA5MzczMX0.ANiPuMSvCW7C8ybJNXU1BhpG1tO18VKGYbxXUrfWVKM'; 
-        const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
-
-        supabaseClient.auth.onAuthStateChange((event, session) => {
-            if (session) {
-                document.getElementById('authSection').style.display = 'none';
-                document.getElementById('gameSection').style.display = 'block';
-                document.getElementById('currentUserEmail').innerText = '접속자: ' + session.user.email;
-                loadCharacters();
-            } else {
-                document.getElementById('authSection').style.display = 'block';
-                document.getElementById('gameSection').style.display = 'none';
-            }
-        });
-
-        function getTitleBadge(streak) {
-            if (streak >= 50) return '<span style="color: #facc15;">👑 전설</span> ';
-            if (streak >= 30) return '<span style="color: #c084fc;">⚔️ 파괴왕</span> ';
-            if (streak >= 5) return '<span style="color: #60a5fa;">🔥 도전자</span> ';
-            return '<span style="color: #4ade80;">🌱 훈련병</span> ';
-        }
-
-        async function loadCharacters() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            const myId = session ? session.user.id : null;
-            const response = await fetch('/api/characters');
-            let characters = await response.json();
-
-            const isMyOnly = document.getElementById('myFilter').checked;
-            if (isMyOnly && myId) {
-                characters = characters.filter(char => char.owner_id === myId);
-            }
-
-            const top3 = [...characters].sort((a,b) => (b.win_streak || 0) - (a.win_streak || 0)).slice(0,3);
-            const hallOfFame = document.getElementById('hallOfFame');
-            hallOfFame.innerHTML = top3.length > 0 && top3[0].win_streak > 0 ? '' : '<p style="color:#666;">아직 연승자가 없습니다.</p>';
-            top3.forEach((char, i) => {
-                if (char.win_streak > 0) {
-                    hallOfFame.innerHTML += `<div style="text-align:center; flex:1; background:rgba(0,0,0,0.2); padding:15px; border-radius:15px;">
-                        <div style="font-size:20px;">${['🥇','🥈','🥉'][i]}</div>
-                        <div><strong>${char.player_name}</strong></div>
-                        <div style="color:#ec4899;">${char.win_streak}연승</div>
-                    </div>`;
-                }
-            });
-
-            const listDiv = document.getElementById('characterList');
-            listDiv.innerHTML = '';
-            characters.forEach(char => {
-                const streak = char.win_streak || 0;
-                const cardClass = streak >= 50 ? 'char-card legend-card' : 'char-card';
-                const isOwner = myId === char.owner_id;
-                const ability = isOwner ? char.ability : '??? (비공개)';
-                const buttons = isOwner ? `
-                    <button onclick="startChallenge(${char.id})" style="background:linear-gradient(135deg, #3b82f6, #8b5cf6); margin-top:10px;">⚔️ 이 전사로 출전하기</button>
-                    <button onclick="deleteCharacter(${char.id})" class="secondary-btn" style="font-size:14px;">🗑️ 은퇴시키기</button>
-                ` : '';
-
-                listDiv.innerHTML += `
-                    <div class="${cardClass}">
-                        <h3>${getTitleBadge(streak)}${char.player_name}</h3>
-                        <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; margin:10px 0; font-size:14px;">
-                            <span>⚔️ ${char.matches || 0}전 ${char.wins || 0}승</span>
-                            <strong style="color:#facc15; margin-left:10px;">🔥 ${streak}연승</strong>
-                        </div>
-                        <p style="font-size:14px; color:#94a3b8;">능력: ${ability}</p>
-                        ${buttons}
-                    </div>
-                `;
-            });
-        }
-
-        async function startRandomBattle() {
-            const arena = document.getElementById('battleArena');
-            arena.style.display = 'block';
-            arena.innerHTML = '<h3>⏳ AI 심판이 전장으로 이동 중...</h3>';
-            const response = await fetch('/api/battle/random');
-            const result = await response.json();
-            typeWriterEffect(result);
-        }
-
-        async function startChallenge(id) {
-            const arena = document.getElementById('battleArena');
-            arena.style.display = 'block';
-            arena.scrollIntoView({ behavior: 'smooth' });
-            arena.innerHTML = '<h3>🚀 도전장을 던졌습니다! 상대를 찾는 중...</h3>';
-            const response = await fetch(`/api/battle/challenge/${id}`);
-            const result = await response.json();
-            typeWriterEffect(result);
-        }
-
-        function typeWriterEffect(result) {
-            const arena = document.getElementById('battleArena');
-            arena.innerHTML = `<h2 style="color:#ec4899;">⚔️ ${result.playerA} VS ${result.playerB}</h2><div id="typewriter" style="font-size:16px; line-height:1.8;"></div>`;
-            const box = document.getElementById('typewriter');
-            let i = 0;
-            const story = result.story;
-            function type() {
-                if (i < story.length) {
-                    box.innerHTML += story.charAt(i) === '\n' ? '<br>' : story.charAt(i);
-                    i++;
-                    setTimeout(type, 20);
-                } else { loadCharacters(); }
-            }
-            type();
-        }
-
-        async function handleSignup() {
-            const { error } = await supabaseClient.auth.signUp({ email: emailInput.value, password: passwordInput.value });
-            authMessage.innerText = error ? '에러: ' + error.message : '가입 성공! 로그인해 주세요.';
-        }
-        async function handleLogin() {
-            const { error } = await supabaseClient.auth.signInWithPassword({ email: emailInput.value, password: passwordInput.value });
-            if (error) authMessage.innerText = '로그인 실패';
-        }
-        async function handleLogout() { await supabaseClient.auth.signOut(); }
-        async function deleteCharacter(id) {
-            if (confirm("은퇴시키겠습니까?")) {
-                await fetch(`/api/characters/${id}`, { method: 'DELETE' });
-                loadCharacters();
-            }
-        }
-    </script>
+    <script src="/app.js"></script>
 </body>
 </html>
