@@ -38,11 +38,12 @@ app.post('/battle', async (req, res) => {
     .insert([{ player_name: name, ability: skill, owner_id: ownerId }]);
 
   if (error) {
-    console.log('❌ 저장 실패:', error.message);
-    res.send('<h1>에러 발생!</h1><p>저장 중 문제가 생겼습니다.</p><a href="/">뒤로 가기</a>');
+    res.status(500).send('저장 실패');
     return;
   }
-  res.send(`<h1>접수 완료!</h1><p>${name} 전사가 등록되었습니다.</p><a href="/">새로운 캐릭터 만들기</a>`);
+  // 🟢 수정: 허접한 텍스트 대신, 전용 결과 페이지로 보냅니다.
+  // 이름과 능력을 주소 뒤에 붙여서 보냅니다 (쿼리 스트링)
+  res.redirect(`/success.html?name=${encodeURIComponent(name)}&ability=${encodeURIComponent(skill)}`);
 });
 
 // 🟢 업무 2: 화면에 캐릭터 명부를 띄워줘야 할 때
