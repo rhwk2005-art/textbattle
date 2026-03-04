@@ -1,163 +1,78 @@
-// 1. 필요한 통신병들 모두 고용하기
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-const OpenAI = require('openai');
+const { Groq } = require('groq-sdk');
+const path = require('path');
 
-// 2. 서버 기본 세팅
 const app = express();
-const port = process.env.PORT || 3000;
-
-// 3. AI 심판 세팅 (보안을 위해 환경 변수 사용)
-const openai = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY || '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',
-  baseURL: 'https://api.groq.com/openai/v1', 
-});
-
-// 4. 영구 창고 세팅 (Supabase)
-const supabaseUrl = 'https://cjtshlrvuhhjmrlksohi.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqdHNobHJ2dWhoam1ybGtzb2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MTc3MzEsImV4cCI6MjA4ODA5MzczMX0.ANiPuMSvCW7C8ybJNXU1BhpG1tO18VKGYbxXUrfWVKM';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// 5. 접수 창구(public) 열기 및 데이터 번역기 달기
-app.use(express.static('public'));
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
 
+// 🔐 환경 변수 설정
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// ==========================================
-// 여기서부터는 업무 지시 (라우팅)
-// ==========================================
-
-// 🟢 업무 1: 폼에서 배틀 신청서가 도착했을 때
+// 1. 캐릭터 생성 및 무료 AI 이미지 생성
 app.post('/battle', async (req, res) => {
-  const name = req.body.playerName;
-  const skill = req.body.ability;
-  const ownerId = req.body.ownerId; 
+    const { playerName, ability, ownerId } = req.body;
+    
+    // Pollinations.ai 무료 이미지 생성 주소 (영문 프롬프트가 유리함)
+    const prompt = encodeURIComponent(`fantasy warrior, ${playerName}, power of ${ability}, epic digital art style`);
+    const imageUrl = `https://pollinations.ai/p/${prompt}?width=512&height=512&seed=${Math.floor(Math.random() * 1000)}`;
 
-  const { data, error } = await supabase
-    .from('characters')
-    .insert([{ player_name: name, ability: skill, owner_id: ownerId }]);
+    const { error } = await supabase.from('characters').insert([{
+        player_name: playerName,
+        ability: ability,
+        owner_id: ownerId,
+        image_url: imageUrl,
+        growth_points: 0,
+        win_streak: 0
+    }]);
 
-  if (error) {
-    res.status(500).send('저장 실패');
-    return;
-  }
-  // 🟢 수정: 허접한 텍스트 대신, 전용 결과 페이지로 보냅니다.
-  // 이름과 능력을 주소 뒤에 붙여서 보냅니다 (쿼리 스트링)
-  res.redirect(`/success.html?name=${encodeURIComponent(name)}&ability=${encodeURIComponent(skill)}`);
+    if (error) return res.status(500).send(error.message);
+    res.redirect(`/success.html?name=${encodeURIComponent(playerName)}`);
 });
 
-// 🟢 업무 2: 화면에 캐릭터 명부를 띄워줘야 할 때
+// 2. 캐릭터 목록 조회
 app.get('/api/characters', async (req, res) => {
-  const { data, error } = await supabase.from('characters').select('*'); 
-  if (error) {
-    res.status(500).send('오류가 발생했습니다.');
-    return;
-  }
-  res.json(data);
+    const { data } = await supabase.from('characters').select('*').order('win_streak', { ascending: false });
+    res.json(data);
 });
 
-// 🟢 업무 3: 무작위 배틀 매칭 (연승 시스템 완벽 적용)
+// 3. 배틀 로직 (포인트 정산 포함)
+async function runBattle(playerA, playerB) {
+    const prompt = `판타지 배틀 심판으로서 소설을 써줘.
+    [캐릭터 A]: ${playerA.player_name} (능력: ${playerA.ability}, 강화: ${playerA.growth_points}EP)
+    [캐릭터 B]: ${playerB.player_name} (능력: ${playerB.ability}, 강화: ${playerB.growth_points}EP)
+    규칙: 반드시 한 명의 승자를 정하고 마지막에 [승자: 이름]을 적어줘.`;
+
+    const chat = await groq.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: 'llama-3.3-70b-versatile'
+    });
+
+    const story = chat.choices[0].message.content;
+    const winnerName = story.includes(playerA.player_name) && story.lastIndexOf(playerA.player_name) > story.lastIndexOf(playerB.player_name) ? playerA.player_name : playerB.player_name;
+    
+    const winner = winnerName === playerA.player_name ? playerA : playerB;
+    const loser = winnerName === playerA.player_name ? playerB : playerA;
+
+    // 📈 포인트 정산 (RPC 함수 사용)
+    await supabase.rpc('update_warrior_points', { row_id: winner.id, amount: 5 });
+    await supabase.rpc('update_warrior_points', { row_id: loser.id, amount: -3 });
+    
+    // 연승 로직 처리 (생략 가능하나 기존 로직 유지 권장)
+    return { playerA: playerA.player_name, playerB: playerB.player_name, story };
+}
+
 app.get('/api/battle/random', async (req, res) => {
-  const { data: characters, error } = await supabase.from('characters').select('*');
-  if (error || characters.length < 2) return res.status(400).send('최소 2명 이상 필요합니다.');
-
-  const shuffled = characters.sort(() => 0.5 - Math.random());
-  const playerA = shuffled[0];
-  const playerB = shuffled[1];
-
-  const prompt = `
-  너는 판타지 배틀 심판이야. 다음 두 캐릭터의 싸움을 3문단 소설로 써줘.
-  [캐릭터 A]: 이름 - ${playerA.player_name}, 능력 - ${playerA.ability}
-  [캐릭터 B]: 이름 - ${playerB.player_name}, 능력 - ${playerB.ability}
-  규칙: 무조건 한 명만 이기고, 마지막 줄에 반드시 [승자: (이긴 캐릭터 이름)] 형식으로 적어.
-  `;
-
-  try {
-    const response = await openai.chat.completions.create({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }] });
-    const story = response.choices[0].message.content;
-
-    let winnerId = null;
-    if (story.includes(`[승자: ${playerA.player_name}]`)) winnerId = playerA.id;
-    else if (story.includes(`[승자: ${playerB.player_name}]`)) winnerId = playerB.id;
-
-    if (winnerId) {
-      const isAWinner = winnerId === playerA.id;
-      const isBWinner = winnerId === playerB.id;
-
-      await supabase.from('characters').update({
-        matches: (playerA.matches || 0) + 1,
-        wins: isAWinner ? (playerA.wins || 0) + 1 : (playerA.wins || 0),
-        win_streak: isAWinner ? (playerA.win_streak || 0) + 1 : 0 
-      }).eq('id', playerA.id);
-
-      await supabase.from('characters').update({
-        matches: (playerB.matches || 0) + 1,
-        wins: isBWinner ? (playerB.wins || 0) + 1 : (playerB.wins || 0),
-        win_streak: isBWinner ? (playerB.win_streak || 0) + 1 : 0
-      }).eq('id', playerB.id);
-    }
-    res.json({ playerA: playerA.player_name, playerB: playerB.player_name, story: story });
-  } catch (err) { res.status(500).send('에러 발생'); }
+    const { data } = await supabase.from('characters').select('*');
+    if (data.length < 2) return res.json({ story: "전사가 부족합니다." });
+    const p1 = data[Math.floor(Math.random() * data.length)];
+    let p2 = data[Math.floor(Math.random() * data.length)];
+    while(p1.id === p2.id) p2 = data[Math.floor(Math.random() * data.length)];
+    res.json(await runBattle(p1, p2));
 });
 
-// 🟢 업무 4: 선택형 배틀 매칭 (연승 시스템 완벽 적용)
-app.get('/api/battle/challenge/:id', async (req, res) => {
-  const challengerId = req.params.id;
-  const { data: challengerData } = await supabase.from('characters').select('*').eq('id', challengerId).single();
-  const { data: opponents } = await supabase.from('characters').select('*').neq('id', challengerId);
-  
-  if (!challengerData || opponents.length === 0) return res.status(400).send('상대가 없습니다.');
-  const opponentData = opponents[Math.floor(Math.random() * opponents.length)];
-
-  const prompt = `
-  너는 판타지 배틀 심판이야. 다음 두 캐릭터의 싸움을 3문단 소설로 써줘.
-  [도전자]: 이름 - ${challengerData.player_name}, 능력 - ${challengerData.ability}
-  [방어자]: 이름 - ${opponentData.player_name}, 능력 - ${opponentData.ability}
-  규칙: 무조건 한 명만 이기고, 마지막 줄에 반드시 [승자: (이긴 캐릭터 이름)] 형식으로 적어.
-  `;
-
-  try {
-    const response = await openai.chat.completions.create({ model: "llama-3.3-70b-versatile", messages: [{ role: "user", content: prompt }] });
-    const story = response.choices[0].message.content;
-
-    let winnerId = null;
-    if (story.includes(`[승자: ${challengerData.player_name}]`)) winnerId = challengerData.id;
-    else if (story.includes(`[승자: ${opponentData.player_name}]`)) winnerId = opponentData.id;
-
-    if (winnerId) {
-      const isChallengerWinner = winnerId === challengerData.id;
-      const isOpponentWinner = winnerId === opponentData.id;
-
-      await supabase.from('characters').update({
-        matches: (challengerData.matches || 0) + 1,
-        wins: isChallengerWinner ? (challengerData.wins || 0) + 1 : (challengerData.wins || 0),
-        win_streak: isChallengerWinner ? (challengerData.win_streak || 0) + 1 : 0
-      }).eq('id', challengerData.id);
-
-      await supabase.from('characters').update({
-        matches: (opponentData.matches || 0) + 1,
-        wins: isOpponentWinner ? (opponentData.wins || 0) + 1 : (opponentData.wins || 0),
-        win_streak: isOpponentWinner ? (opponentData.win_streak || 0) + 1 : 0
-      }).eq('id', opponentData.id);
-    }
-    res.json({ playerA: challengerData.player_name, playerB: opponentData.player_name, story: story });
-  } catch (err) { res.status(500).send('에러 발생'); }
-});
-
-// 🟢 업무 5: 캐릭터 삭제 (은퇴)
-app.delete('/api/characters/:id', async (req, res) => {
-  const charId = req.params.id;
-  const { error } = await supabase.from('characters').delete().eq('id', charId);
-  if (error) {
-    res.status(500).send('삭제 오류');
-  } else {
-    res.send('삭제 성공');
-  }
-});
-
-// ==========================================
-// 6. 서버 작동 (문 열기) - 반드시 파일 맨 마지막에 딱 한 번만 있어야 합니다!
-// ==========================================
-app.listen(port, () => {
-  console.log(`서버가 켜졌습니다! 주소: http://localhost:${port}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`서버가 ${PORT}번 포트에서 전장을 감시 중...`));
