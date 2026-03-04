@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const { Groq } = require('groq-sdk');
@@ -7,6 +8,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
+app.use((req, res, next) => {
+  console.log(`[CCTV] 유저가 ${req.url} 페이지에 접근했습니다.`);
+  next();
+});
 
 // 🔐 환경 변수 설정
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
