@@ -206,7 +206,7 @@
             }
         }
 
-        // [수정됨] 캐릭터 명부 불러오기 (능력치 비공개 기능 추가)
+        // [수정됨] 캐릭터 명부 불러오기 (전적 및 승률 계산 기능 추가)
         async function loadCharacters() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             const myId = session ? session.user.id : null;
@@ -217,21 +217,32 @@
             listDiv.innerHTML = '';
 
             characters.forEach(char => {
-                
                 let deleteBtn = '';
-                let displayAbility = '<span style="color: #ff4757;">??? (비공개)</span>'; // 🟢 기본값: 남의 것은 무조건 가림
+                let displayAbility = '<span style="color: #ec4899;">??? (비공개)</span>';
 
-                // 🟢 검사: 이 캐릭터의 주인이 '나'라면?
+                // 🟢 1. 승률 계산 로직 (수학)
+                const matches = char.matches || 0; // 배틀 횟수 (없으면 0)
+                const wins = char.wins || 0;       // 승리 횟수 (없으면 0)
+                // 0으로 나누는 오류를 방지하기 위해, 판수가 0보다 클 때만 계산합니다.
+                const winRate = matches > 0 ? Math.round((wins / matches) * 100) : 0;
+
                 if (myId === char.owner_id) {
-                    displayAbility = char.ability; // 진짜 능력을 보여줌
-                    deleteBtn = `<button onclick="deleteCharacter(${char.id})" style="background-color:#555; padding:8px; font-size:14px; margin-top:10px; width:100%;">🗑️ 내 전사 은퇴시키기</button>`;
+                    displayAbility = char.ability;
+                    // 내 전사 은퇴 버튼 디자인도 유리 질감에 맞게 살짝 수정했습니다.
+                    deleteBtn = `<button onclick="deleteCharacter(${char.id})" style="background:rgba(255,255,255,0.1); padding:10px; font-size:14px; margin-top:15px; width:100%; box-shadow:none;">🗑️ 내 전사 은퇴시키기</button>`;
                 }
 
-                // 화면에 그려질 캐릭터 카드 HTML
+                // 🟢 2. 화면에 그려질 캐릭터 카드 HTML (가운데에 전적 뱃지 추가)
                 const charCard = `
                     <div class="char-card">
-                        <h3 style="color:#ff4757; margin-top:0;">👤 ${char.player_name}</h3>
-                        <p style="font-size:14px; color:#ccc;"><strong>능력:</strong> ${displayAbility}</p>
+                        <h3 style="color:#f1f5f9; margin-top:0; font-size:22px;">👤 ${char.player_name}</h3>
+                        
+                        <div style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 12px; margin: 15px 0; font-size: 15px;">
+                            <span style="color: #cbd5e1;">⚔️ ${matches}전 ${wins}승</span> 
+                            <strong style="color: #ec4899; margin-left: 10px;">🏆 승률 ${winRate}%</strong>
+                        </div>
+
+                        <p style="font-size:14px; color:#94a3b8; line-height:1.4;"><strong>능력:</strong><br>${displayAbility}</p>
                         ${deleteBtn}
                     </div>
                 `;
