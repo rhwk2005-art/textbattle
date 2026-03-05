@@ -11,10 +11,10 @@ module.exports = (supabase, groq) => {
         아래 4가지 심사 기준을 종합적으로 계산하여 승자를 판정하세요.
 
         [심사 기준]
-        1. 이름의 위압감: 이름에서 느껴지는 서사적 포스
-        2. 능력 설정과 상성: 능력의 파괴력 및 상대방의 능력을 카운터 치는 속성 상성
-        3. 실제 능력치 (힘/민첩/지력): 스탯의 총합과 분배가 전투에 미치는 물리적/마법적 영향
-        4. 강화 횟수: 강화 레벨에 따른 압도적인 등급 차이
+        1. 이름의 위압감: 이름에서 느껴지는 서사적 포스(10%)
+        2. 능력 설정과 상성: 능력의 파괴력 및 상대방의 능력을 카운터 치는 속성 상성(40%)
+        3. 실제 능력치 (힘/민첩/지력): 스탯의 총합과 분배가 전투에 미치는 물리적/마법적 영향(20%)
+        4. 강화 횟수: 강화 레벨에 따른 압도적인 등급 차이(30%)
 
         [전사 A 데이터] 
         - 이름: ${playerA.player_name}
@@ -29,38 +29,60 @@ module.exports = (supabase, groq) => {
         - 강화 횟수: +${playerB.enhance_level}
 
         [출력 규칙 - 반드시 아래 양식을 지킬 것]
-        1. 두 전사의 격돌을 반드시 박진감 넘치는 소설(1문단)로 간결하게 묘사해줘. 상대방이 어떤 능력이있는지 자세하게 적지마.
-        2. 맨 마지막 줄에는 반드시 [승자: 이름] 형식으로 승자의 이름만 정확히 출력해.`;
+        1. 두 전사의 격돌을 반드시 박진감 넘치는 소설 형식 1문단으로 간결하게 묘사한다. 상대방의 능력은 구체적으로 설명은 하지 않는다.
+        2. 전투 묘사 바로 다음 줄에 한 줄 띄우고, [승자: 이름] 형식으로 승자의 이름만 정확히 출력한다.`;
 
+        // 🟢 [완벽 수정됨] 아래 4줄의 AI 호출 코드가 반드시 "한 번만" 있어야 합니다.
         const chat = await groq.chat.completions.create({
             messages: [{ role: 'user', content: prompt }],
             model: 'llama-3.3-70b-versatile',
-            temperature: 0.7 // 약간의 논리적 일관성을 위해 추가
+            temperature: 0.7 
         });
 
-        const story = chat.choices[0].message.content;
+        let story = chat.choices[0].message.content;
+        story = story.replace(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\uFAFF\uFF66-\uFF9F]/g, '');
         
-        // 기존 승자 판독 로직 및 DB 업데이트 로직은 그대로 유지합니다.
+        // 🟢 [복구됨] 승자 이름 판독 로직
         const winnerName = (story.includes(playerA.player_name) && story.lastIndexOf(playerA.player_name) > story.lastIndexOf(playerB.player_name)) 
             ? playerA.player_name : playerB.player_name;
-        
+
+        // 기존 승자 판독 로직 및 DB 업데이트 로직은 그대로 유지합니다.
         const winner = winnerName === playerA.player_name ? playerA : playerB;
         const loser = winnerName === playerA.player_name ? playerB : playerA;
 
+        // 🟢 [신규 추가] 현상금(보너스 EP) 계산 로직
+        let bonusEP = 0;
+        let bountyMessage = "";
+        
+        // 상대방(패자)이 3연승 이상 달리고 있던 랭커라면 현상금 발동!
+        if (loser.win_streak >= 3) {
+            bonusEP = loser.win_streak * 2; // 연승 1회당 2 EP 보너스
+            bountyMessage = `<br><br><span style="color:#facc15; font-weight:bold; font-size:18px;">💰 잭팟! ${loser.player_name}의 ${loser.win_streak}연승을 저지하여 현상금 ${bonusEP} EP를 추가 획득했습니다!</span>`;
+        }
+
+        const totalEarnedEP = 5 + bonusEP; // 기본 5점에 보너스를 합산
+
+        // 승자 업데이트 (합산된 totalEarnedEP 부여)
         await supabase.from('characters').update({
             wins: (winner.wins || 0) + 1,
             matches: (winner.matches || 0) + 1,
             win_streak: (winner.win_streak || 0) + 1,
-            growth_points: (winner.growth_points || 0) + 5
+            growth_points: (winner.growth_points || 0) + totalEarnedEP
         }).eq('id', winner.id);
 
+        // 패자 업데이트 (기존과 동일)
         await supabase.from('characters').update({
             matches: (loser.matches || 0) + 1,
             win_streak: 0,
             growth_points: Math.max(0, (loser.growth_points || 0) - 3)
         }).eq('id', loser.id);
 
-        return { playerA: playerA.player_name, playerB: playerB.player_name, story };
+        // 프론트엔드로 소설과 함께 현상금 메시지도 몰래 전달
+        return { 
+            playerA: playerA.player_name, 
+            playerB: playerB.player_name, 
+            story: story + bountyMessage // 소설 밑에 알림창을 붙임
+        };
     }
 
 // ⚔️ 무작위 난투 API (소유권 확인 로직 추가)

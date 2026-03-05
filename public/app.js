@@ -161,20 +161,23 @@ async function startChallenge(id) {
     typeWriterEffect(result);
 }
 
+// 🟢 [수정됨] 글자가 타이핑된 후, 현상금이 터졌다면 화려하게 보여줍니다.
 function typeWriterEffect(result) {
     const arena = document.getElementById('battleArena');
     arena.innerHTML = `<h2 style="color:#ec4899;">⚔️ ${result.playerA} VS ${result.playerB}</h2><div id="typewriter" style="font-size:16px; line-height:1.8; color:#cbd5e1;"></div>`;
     const box = document.getElementById('typewriter');
+    
     let i = 0;
-    const story = result.story || "전투 기록을 불러올 수 없습니다.";
-    function type() {
-        if (i < story.length) {
-            box.innerHTML += story.charAt(i) === '\n' ? '<br>' : story.charAt(i);
-            i++;
-            setTimeout(type, 15);
-        } else { loadCharacters(); }
-    }
-    type();
+    // 태그(알림창)가 포함되어 있을 수 있으므로 처리 방식을 바꿉니다.
+    const storyHtml = result.story || "전투 기록을 불러올 수 없습니다.";
+    
+    // 타이핑 효과 대신, 결과창(1문단)과 잭팟 알림을 한 번에 쾅! 하고 띄워 속도감을 극대화합니다.
+    box.innerHTML = storyHtml.replace(/\n/g, '<br>');
+    
+    // 3초 뒤에 캐릭터 목록을 새로고침하여 돈이 들어온 것을 확인시켜줍니다.
+    setTimeout(() => {
+        loadCharacters();
+    }, 3000);
 }
 
 async function handleSignup() {
