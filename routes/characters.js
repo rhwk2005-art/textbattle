@@ -1,35 +1,45 @@
 const express = require('express');
 const router = express.Router();
 
+const Groq = require('groq-sdk');
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
 module.exports = (supabase) => {
     
-    // 1. 캐릭터 생성 API (6개 제한 로직 추가)
+    // 1. 캐릭터 생성 API
     router.post('/battle', async (req, res) => {
         const { playerName, ability, ownerId } = req.body;
         
-        // 🟢 [신규 추가] DB를 조회하여 이 유저가 가진 캐릭터 개수를 셉니다.
-        const { count, error: countError } = await supabase
-            .from('characters')
-            .select('*', { count: 'exact', head: true })
-            .eq('owner_id', ownerId);
+        // 🟢 [핵심 신규 추가] 1. Groq AI에게 한글을 영어 이미지 프롬프트로 번역하라고 지시합니다.
+        let englishPrompt = `${playerName}, ${ability}`; // 기본값 (혹시 번역 에러가 날 경우 대비)
+        
+        try {
+            const translatePrompt = `당신은 AI 이미지 프롬프트 번역가입니다. 
+            다음 한국어 캐릭터 이름과 능력을 Stable Diffusion이 완벽하게 이해할 수 있는 웅장하고 디테일한 영어 명사/키워드 위주로 번역하세요. 
+            이름: ${playerName} / 능력: ${ability}
+            출력 규칙: 번역된 영어 문장만 정확히 출력하고, 다른 부연 설명은 절대 하지 마세요.`;
 
-        // 캐릭터가 이미 6개 이상이라면 생성을 막고 경고창을 띄운 뒤 뒤로 돌려보냅니다.
-        if (count >= 6) {
-            return res.send(`<script>
-                alert("막사(슬롯)가 가득 찼습니다! 최대 6개까지만 보유할 수 있습니다. 기존 캐릭터를 은퇴시켜주세요.");
-                window.history.back();
-            </script>`);
+            const chat = await groq.chat.completions.create({
+                messages: [{ role: 'user', content: translatePrompt }],
+                model: 'llama-3.3-70b-versatile',
+                temperature: 0.3 // 번역의 정확도를 위해 온도를 낮춤
+            });
+            
+            englishPrompt = chat.choices[0].message.content.trim();
+            console.log("통역 완료! 영어 프롬프트:", englishPrompt); // 터미널에서 확인용
+        } catch (e) {
+            console.log("Groq 번역 실패, 원본 한글 사용:", e.message);
         }
 
-        // 🟢 (이 아래부터는 기존에 작성하신 동적 프롬프트(prompt) 및 Hugging Face 호출 로직을 그대로 두시면 됩니다!)
-        const prompt = `A highly detailed fantasy portrait of a warrior named ${playerName}, power: ${ability}, digital painting, epic lighting, masterpiece`;
+        // 🟢 2. 번역된 영어(englishPrompt)를 그림 AI에게 전달합니다.
+        const prompt = `A highly detailed fantasy portrait of a warrior named ${englishPrompt}, digital painting, epic lighting, masterpiece`;
         
-        let finalImageUrl = ''; // 성공하면 그림 데이터, 실패하면 기본 아바타가 들어갈 바구니
+        let finalImageUrl = ''; 
 
         try {
-            // 🟢 2. Hugging Face 서버에 그림 주문
+            // (이 아래부터는 기존에 작성하신 Hugging Face fetch 코드와 DB insert 코드가 그대로 들어갑니다!)
             const response = await fetch(
-            "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0",
+                "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0",
             {
                 headers: { 
                     "Authorization": `Bearer ${process.env.HF_API_TOKEN}`,

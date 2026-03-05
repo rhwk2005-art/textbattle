@@ -144,15 +144,16 @@
                 </a>
             </div>
 
-            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 40px 0;">
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h2 style="margin: 0; font-size: 22px;">👨‍👩‍👧‍👦 현재 인구</h2>
-                <div style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.2); padding: 8px 15px; border-radius: 10px;">
-                    <label for="myFilter" style="color: #94a3b8; font-size: 15px; cursor: pointer;">내 캐릭터만 보기</label>
-                    <input type="checkbox" id="myFilter" onchange="loadCharacters()" style="width: 16px; height: 16px; accent-color: #ec4899;">
-                </div>
-            </div>
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin: 40px 0;">
+        
+        <div style="display: flex; gap: 20px; margin-bottom: 25px; border-bottom: 2px solid rgba(255,255,255,0.05); padding-bottom: 10px;">
+            <button id="tabGlobal" onclick="switchTab('global')" style="background:none; border:none; cursor:pointer; font-size:18px; font-weight:bold; color:#ec4899; border-bottom:3px solid #ec4899; padding-bottom:5px; transition:0.3s;">
+                🌐 전체 인구
+            </button>
+            <button id="tabMine" onclick="switchTab('mine')" style="background:none; border:none; cursor:pointer; font-size:18px; font-weight:bold; color:#94a3b8; border-bottom:3px solid transparent; padding-bottom:5px; transition:0.3s;">
+                ⚔️ 내 캐릭터 정보
+            </button>
+        </div>
 
             <button onclick="startRandomBattle()" class="primary-btn" style="width: 100%; background: linear-gradient(135deg, #ef4444, #f59e0b); margin-bottom: 30px; padding: 15px; font-size: 18px;">🔥 무작위 난투 시작! 🔥</button>
 
