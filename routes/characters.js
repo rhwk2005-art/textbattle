@@ -3,20 +3,54 @@ const router = express.Router();
 
 module.exports = (supabase) => {
     
-    // 1. 캐릭터 생성 (1~10 랜덤 스탯 부여)
+// 1. 캐릭터 생성 (1~10 랜덤 스탯 부여 및 Stable Diffusion 연동)
     router.post('/battle', async (req, res) => {
         const { playerName, ability, ownerId } = req.body;
         
-        const imageUrl = `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(playerName)}`;
+        // 🟢 1. 동적 프롬프트 생성 (유저가 입력한 이름과 능력을 그대로 영어 문장에 조립)
+        const prompt = `A highly detailed fantasy portrait of a warrior named ${playerName}, power: ${ability}, digital painting, epic lighting, masterpiece`;
+        
+        let finalImageUrl = ''; // 성공하면 그림 데이터, 실패하면 기본 아바타가 들어갈 바구니
+
+        try {
+            // 🟢 2. Hugging Face 서버에 그림 주문
+            const response = await fetch(
+            "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0",
+            {
+                headers: { 
+                    "Authorization": `Bearer ${process.env.HF_API_TOKEN}`,
+                    "Content-Type": "application/json"
+                },
+                method: "POST",
+                body: JSON.stringify({ inputs: prompt }),
+            }
+        );
+
+            // 🟢 3. 무료 서버가 자고 있거나 과부하일 때의 방어막
+            if (!response.ok) {
+                console.error("HF API 에러:", await response.text());
+                throw new Error("그림 생성 실패 (서버 로딩 중)");
+            }
+
+            // 🟢 4. 성공적으로 받은 그림 파일을 Base64(텍스트)로 변환
+            const buffer = await response.arrayBuffer();
+            finalImageUrl = `data:image/jpeg;base64,${Buffer.from(buffer).toString('base64')}`;
+
+        } catch (err) {
+            // 🟢 5. 실패 시 엑스박스가 뜨지 않도록 멋진 로봇 아바타로 임시 대체 (안전장치)
+            console.log("SD 이미지 생성 실패, 로봇 아바타로 대체합니다.");
+            finalImageUrl = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${encodeURIComponent(playerName)}`;
+        }
         
         // 힘, 민첩, 지력 1~10 무작위 생성
         const str = Math.floor(Math.random() * 10) + 1;
         const agi = Math.floor(Math.random() * 10) + 1;
         const intel = Math.floor(Math.random() * 10) + 1;
 
+        // DB에 저장 (image_url 칸에 finalImageUrl 변수를 넣음)
         const { error } = await supabase.from('characters').insert([{
             player_name: playerName, ability: ability, owner_id: ownerId,
-            image_url: imageUrl, growth_points: 0, win_streak: 0, wins: 0, matches: 0,
+            image_url: finalImageUrl, growth_points: 0, win_streak: 0, wins: 0, matches: 0,
             str: str, agi: agi, intel: intel, enhance_level: 0
         }]);
 

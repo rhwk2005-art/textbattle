@@ -76,7 +76,7 @@ async function loadCharacters() {
         // 🟢 스탯 UI 추가
         listDiv.innerHTML += `
             <div class="${cardClass}">
-                <img src="${char.image_url || 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + char.player_name}" class="char-img">
+                <img src="${char.image_url}" onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=${char.player_name}'; this.onerror=null;" class="char-img">
                 <h3>${getTitleBadge(streak, enhanceLv)}${char.player_name}</h3>
                 <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
                     ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
