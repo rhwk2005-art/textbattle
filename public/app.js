@@ -14,11 +14,16 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
     }
 });
 
-function getTitleBadge(streak) {
-    if (streak >= 50) return '<span style="color: #facc15;">👑 전설</span> ';
-    if (streak >= 30) return '<span style="color: #c084fc;">⚔️ 파괴왕</span> ';
-    if (streak >= 5) return '<span style="color: #60a5fa;">🔥 도전자</span> ';
-    return '<span style="color: #4ade80;">🌱 훈련병</span> ';
+function getTitleBadge(streak, enhanceLevel) {
+    let badge = '';
+    if (streak >= 50) badge = '<span style="color: #facc15;">👑 전설</span> ';
+    else if (streak >= 30) badge = '<span style="color: #c084fc;">⚔️ 파괴왕</span> ';
+    else if (streak >= 5) badge = '<span style="color: #60a5fa;">🔥 도전자</span> ';
+    else badge = '<span style="color: #4ade80;">🌱 훈련병</span> ';
+
+    // 강화 단계 표시 추가
+    const enhanceText = enhanceLevel > 0 ? `<span style="color: #ff9f43; font-weight: bold;">[+${enhanceLevel}]</span> ` : '';
+    return badge + enhanceText;
 }
 
 async function loadCharacters() {
@@ -52,21 +57,37 @@ async function loadCharacters() {
     characters.forEach(char => {
         const gp = char.growth_points || 0;
         const streak = char.win_streak || 0;
+        const enhanceLv = char.enhance_level || 0;
         const isOwner = myId === char.owner_id;
-        const cardClass = (streak >= 50 || gp >= 100) ? 'char-card legend-card' : 'char-card';
+        const cardClass = (streak >= 50 || gp >= 100 || enhanceLv >= 5) ? 'char-card legend-card' : 'char-card';
         
+        // 🟢 다음 강화에 필요한 EP 계산 공식 적용
+        const enhanceCost = 5 + (enhanceLv * 2);
+        const canEnhance = gp >= enhanceCost;
+
         const buttons = isOwner ? `
             <button onclick="startChallenge(${char.id})" style="background:linear-gradient(135deg, #3b82f6, #8b5cf6); margin-top:10px; font-size:14px;">⚔️ 출격하기</button>
+            <button onclick="enhanceCharacter(${char.id})" style="background:${canEnhance ? '#10b981' : '#4b5563'}; margin-top:5px; font-size:14px; cursor:${canEnhance ? 'pointer' : 'not-allowed'};" ${canEnhance ? '' : 'disabled'}>
+                🔨 강화하기 (${enhanceCost} EP)
+            </button>
             <button onclick="deleteCharacter(${char.id})" class="secondary-btn" style="font-size:12px; margin-top:5px;">🗑️ 은퇴 (삭제)</button>
         ` : '';
 
+        // 🟢 스탯 UI 추가
         listDiv.innerHTML += `
             <div class="${cardClass}">
-                <img src="${char.image_url || 'https://image.pollinations.ai/prompt/fantasy-warrior?width=512&height=512'}" class="char-img">
-                <h3>${getTitleBadge(streak)}${char.player_name}</h3>
+                <img src="${char.image_url || 'https://api.dicebear.com/9.x/adventurer/svg?seed=' + char.player_name}" class="char-img">
+                <h3>${getTitleBadge(streak, enhanceLv)}${char.player_name}</h3>
                 <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
                     ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
                 </div>
+                
+                <div style="display:flex; justify-content:space-around; background:#1e1e2f; padding:8px; border-radius:10px; margin-bottom:10px; font-size:14px; border:1px solid #444;">
+                    <span style="color:#ef4444;">💪힘: ${char.str || 1}</span>
+                    <span style="color:#3b82f6;">⚡민: ${char.agi || 1}</span>
+                    <span style="color:#a855f7;">🧠지: ${char.intel || 1}</span>
+                </div>
+
                 <div style="margin:15px 0; background:#222; border-radius:20px; padding:5px; border:1px solid #444;">
                     <div style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; margin-bottom:3px; padding:0 5px;">
                         <span>Lv.${Math.floor(gp / 10)}</span>
@@ -81,6 +102,25 @@ async function loadCharacters() {
             </div>
         `;
     });
+}
+
+// 🟢 신규: 강화 API 호출 로직
+async function enhanceCharacter(id) {
+    if (!confirm("포인트를 소모하여 스탯을 강화하시겠습니까?")) return;
+    
+    try {
+        const response = await fetch(`/api/characters/${id}/enhance`, { method: 'POST' });
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert(result.message); // 예: "강화 성공! STR 스탯이 +2 올랐습니다."
+            loadCharacters(); // 화면 새로고침
+        } else {
+            alert(result.error);
+        }
+    } catch (err) {
+        alert("강화 서버에 연결할 수 없습니다.");
+    }
 }
 
 async function startRandomBattle() {
