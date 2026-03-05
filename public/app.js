@@ -59,7 +59,7 @@ async function loadCharacters() {
         const streak = char.win_streak || 0;
         const enhanceLv = char.enhance_level || 0;
         const isOwner = myId === char.owner_id;
-        const cardClass = (streak >= 50 || gp >= 100 || enhanceLv >= 5) ? 'char-card legend-card' : 'char-card';
+        const cardClass = (streak >= 50 ) ? 'char-card legend-card' : 'char-card';
         
         // 🟢 다음 강화에 필요한 EP 계산 공식 적용
         const enhanceCost = 5 + (enhanceLv * 2);
@@ -123,13 +123,31 @@ async function enhanceCharacter(id) {
     }
 }
 
+// 🟢 무작위 난투 API 호출 로직 (내 ID 포함하여 전송)
 async function startRandomBattle() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const myId = session ? session.user.id : null;
+    
+    if (!myId) {
+        alert("전장에 참여하려면 로그인이 필요합니다.");
+        return;
+    }
+
     const arena = document.getElementById('battleArena');
     arena.style.display = 'block';
-    arena.innerHTML = '<h3>⏳ AI 심판이 전장을 조성 중입니다...</h3>';
+    arena.innerHTML = '<h3>⏳ AI 심판이 매칭을 준비 중입니다...</h3>';
     arena.scrollIntoView({ behavior: 'smooth' });
-    const response = await fetch('/api/battle/random');
+
+    // 내 ID(ownerId)를 꼬리표로 달아서 서버에 요청합니다.
+    const response = await fetch(`/api/battle/random?ownerId=${myId}`);
     const result = await response.json();
+    
+    // 전사가 없거나 에러가 발생한 경우 알림 표시
+    if (result.error) {
+        arena.innerHTML = `<h3 style="color: #ef4444;">❌ ${result.error}</h3>`;
+        return;
+    }
+    
     typeWriterEffect(result);
 }
 

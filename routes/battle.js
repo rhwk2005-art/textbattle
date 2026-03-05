@@ -29,7 +29,7 @@ module.exports = (supabase, groq) => {
         - 강화 횟수: +${playerB.enhance_level}
 
         [출력 규칙 - 반드시 아래 양식을 지킬 것]
-        1. 두 전사의 격돌을 박진감 넘치는 소설(1~3문단)로 묘사해줘. 묘사 중에 스탯(힘/민첩/지력)과 강화 단계가 어떻게 승패를 갈랐는지 자연스럽게 녹여내.
+        1. 두 전사의 격돌을 반드시 박진감 넘치는 소설(1문단)로 간결하게 묘사해줘. 상대방이 어떤 능력이있는지 자세하게 적지마.
         2. 맨 마지막 줄에는 반드시 [승자: 이름] 형식으로 승자의 이름만 정확히 출력해.`;
 
         const chat = await groq.chat.completions.create({
@@ -63,14 +63,36 @@ module.exports = (supabase, groq) => {
         return { playerA: playerA.player_name, playerB: playerB.player_name, story };
     }
 
-    // ⚔️ 무작위 난투 API
+// ⚔️ 무작위 난투 API (소유권 확인 로직 추가)
     router.get('/random', async (req, res) => {
-        const { data } = await supabase.from('characters').select('*');
-        if (data.length < 2) return res.json({ story: "전사가 부족합니다." });
-        const p1 = data[Math.floor(Math.random() * data.length)];
-        let p2 = data[Math.floor(Math.random() * data.length)];
-        while(p1.id === p2.id) p2 = data[Math.floor(Math.random() * data.length)];
-        res.json(await runBattle(p1, p2));
+        const ownerId = req.query.ownerId;
+        if (!ownerId) return res.status(400).json({ error: "로그인 정보가 없습니다." });
+
+        try {
+            // 1. 출전할 '나의 전사' 목록 싹쓸이 조회
+            const { data: myChars } = await supabase.from('characters').select('*').eq('owner_id', ownerId);
+            if (!myChars || myChars.length === 0) {
+                return res.json({ error: "전투에 내보낼 나의 전사가 없습니다. 먼저 전사를 소환하세요!" });
+            }
+
+            // 2. 출전할 나의 전사 1명 무작위 선택 (Player A)
+            const p1 = myChars[Math.floor(Math.random() * myChars.length)];
+
+            // 3. 맞서 싸울 상대방(나를 제외한 나머지 전사들) 목록 조회
+            const { data: opponents } = await supabase.from('characters').select('*').neq('owner_id', ownerId);
+            if (!opponents || opponents.length === 0) {
+                return res.json({ error: "맞서 싸울 다른 유저의 전사가 아직 존재하지 않습니다." });
+            }
+            
+            // 4. 상대방 전사 1명 무작위 선택 (Player B)
+            const p2 = opponents[Math.floor(Math.random() * opponents.length)];
+
+            // 매칭 완료! 전투 시작
+            res.json(await runBattle(p1, p2));
+
+        } catch (err) {
+            res.status(500).json({ error: "매칭 중 서버 오류가 발생했습니다." });
+        }
     });
 
     // ⚔️ 특정 전사 출격 API
