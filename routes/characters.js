@@ -3,11 +3,25 @@ const router = express.Router();
 
 module.exports = (supabase) => {
     
-// 1. 캐릭터 생성 (1~10 랜덤 스탯 부여 및 Stable Diffusion 연동)
+    // 1. 캐릭터 생성 API (6개 제한 로직 추가)
     router.post('/battle', async (req, res) => {
         const { playerName, ability, ownerId } = req.body;
         
-        // 🟢 1. 동적 프롬프트 생성 (유저가 입력한 이름과 능력을 그대로 영어 문장에 조립)
+        // 🟢 [신규 추가] DB를 조회하여 이 유저가 가진 캐릭터 개수를 셉니다.
+        const { count, error: countError } = await supabase
+            .from('characters')
+            .select('*', { count: 'exact', head: true })
+            .eq('owner_id', ownerId);
+
+        // 캐릭터가 이미 6개 이상이라면 생성을 막고 경고창을 띄운 뒤 뒤로 돌려보냅니다.
+        if (count >= 6) {
+            return res.send(`<script>
+                alert("막사(슬롯)가 가득 찼습니다! 최대 6개까지만 보유할 수 있습니다. 기존 캐릭터를 은퇴시켜주세요.");
+                window.history.back();
+            </script>`);
+        }
+
+        // 🟢 (이 아래부터는 기존에 작성하신 동적 프롬프트(prompt) 및 Hugging Face 호출 로직을 그대로 두시면 됩니다!)
         const prompt = `A highly detailed fantasy portrait of a warrior named ${playerName}, power: ${ability}, digital painting, epic lighting, masterpiece`;
         
         let finalImageUrl = ''; // 성공하면 그림 데이터, 실패하면 기본 아바타가 들어갈 바구니

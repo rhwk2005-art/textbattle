@@ -52,6 +52,10 @@ async function loadCharacters() {
     });
 
     const listDiv = document.getElementById('characterList');
+    listDiv.style.display = 'grid';
+    listDiv.style.gridTemplateColumns = 'repeat(auto-fill, minmax(240px, 1fr))';
+    listDiv.style.gap = '20px';
+    listDiv.style.alignItems = 'stretch';
     listDiv.innerHTML = ''; 
 
     characters.forEach(char => {
@@ -61,43 +65,53 @@ async function loadCharacters() {
         const isOwner = myId === char.owner_id;
         const cardClass = (streak >= 50 ) ? 'char-card legend-card' : 'char-card';
         
-        // 🟢 다음 강화에 필요한 EP 계산 공식 적용
         const enhanceCost = 5 + (enhanceLv * 2);
         const canEnhance = gp >= enhanceCost;
 
         const buttons = isOwner ? `
-            <button onclick="startChallenge(${char.id})" style="background:linear-gradient(135deg, #3b82f6, #8b5cf6); margin-top:10px; font-size:14px;">⚔️ 출격하기</button>
-            <button onclick="enhanceCharacter(${char.id})" style="background:${canEnhance ? '#10b981' : '#4b5563'}; margin-top:5px; font-size:14px; cursor:${canEnhance ? 'pointer' : 'not-allowed'};" ${canEnhance ? '' : 'disabled'}>
-                🔨 강화하기 (${enhanceCost} EP)
-            </button>
-            <button onclick="deleteCharacter(${char.id})" class="secondary-btn" style="font-size:12px; margin-top:5px;">🗑️ 은퇴 (삭제)</button>
+            <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+                <button onclick="startChallenge(${char.id})" style="background:linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 10px; font-size:14px; width: 100%; border-radius: 8px; font-weight: bold;">⚔️ 출격하기</button>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="enhanceCharacter(${char.id})" style="flex: 2; background:${canEnhance ? '#10b981' : '#4b5563'}; font-size:12px; padding: 8px; cursor:${canEnhance ? 'pointer' : 'not-allowed'}; border-radius: 8px; margin: 0;" ${canEnhance ? '' : 'disabled'}>
+                        🔨 강화 (${enhanceCost}EP)
+                    </button>
+                    <button onclick="deleteCharacter(${char.id})" class="secondary-btn" style="flex: 1; background: #ef4444; font-size:12px; padding: 8px; border-radius: 8px; margin: 0;">🗑️ 은퇴</button>
+                </div>
+            </div>
         ` : '';
 
-        // 🟢 스탯 UI 추가
+        // 🟢 [핵심 수정 2] 높이 고정(height)을 없애고, 이미지가 찌그러지지 않게 1:1 비율을 줍니다.
+        // 스크롤바 대신 말줄임표(-webkit-line-clamp: 3)를 넣고, title 속성으로 마우스 툴팁을 추가했습니다.
         listDiv.innerHTML += `
-            <div class="${cardClass}">
-                <img src="${char.image_url}" onerror="this.src='https://api.dicebear.com/9.x/adventurer/svg?seed=${char.player_name}'; this.onerror=null;" class="char-img">
-                <h3>${getTitleBadge(streak, enhanceLv)}${char.player_name}</h3>
-                <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
-                    ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
-                </div>
-                
-                <div style="display:flex; justify-content:space-around; background:#1e1e2f; padding:8px; border-radius:10px; margin-bottom:10px; font-size:14px; border:1px solid #444;">
-                    <span style="color:#ef4444;">💪힘: ${char.str || 1}</span>
-                    <span style="color:#3b82f6;">⚡민: ${char.agi || 1}</span>
-                    <span style="color:#a855f7;">🧠지: ${char.intel || 1}</span>
-                </div>
+            <div class="${cardClass}" style="display: flex; flex-direction: column; height: 100%; padding: 15px; box-sizing: border-box;">
+                <div style="flex-grow: 1;">
+                    <img src="${char.image_url}" onerror="this.src='https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${char.player_name}'; this.onerror=null;" style="width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 12px; margin-bottom: 12px; background: #111;">
+                    <h3>${getTitleBadge(streak, enhanceLv)}${char.player_name}</h3>
+                    
+                    <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:5px; margin:10px 0; font-size:13px; color:#facc15;">
+                        ⚔️ ${char.matches || 0}전 ${char.wins || 0}승 (연승: ${streak})
+                    </div>
+                    
+                    <div style="display:flex; justify-content:space-around; background:#1e1e2f; padding:8px; border-radius:10px; margin-bottom:10px; font-size:14px; border:1px solid #444;">
+                        <span style="color:#ef4444;">💪힘: ${char.str || 1}</span>
+                        <span style="color:#3b82f6;">⚡민: ${char.agi || 1}</span>
+                        <span style="color:#a855f7;">🧠지: ${char.intel || 1}</span>
+                    </div>
 
-                <div style="margin:15px 0; background:#222; border-radius:20px; padding:5px; border:1px solid #444;">
-                    <div style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; margin-bottom:3px; padding:0 5px;">
-                        <span>Lv.${Math.floor(gp / 10)}</span>
-                        <span>${gp} EP</span>
+                    <div style="margin:15px 0; background:#222; border-radius:20px; padding:5px; border:1px solid #444;">
+                        <div style="font-size:11px; color:#aaa; display:flex; justify-content:space-between; margin-bottom:3px; padding:0 5px;">
+                            <span>Lv.${Math.floor(gp / 10)}</span>
+                            <span>${gp} EP</span>
+                        </div>
+                        <div style="background:#111; height:8px; border-radius:4px; overflow:hidden;">
+                            <div style="background:linear-gradient(90deg, #4f46e5, #10b981); width:${Math.min(gp, 100)}%; height:100%; transition:width 0.5s;"></div>
+                        </div>
                     </div>
-                    <div style="background:#111; height:8px; border-radius:4px; overflow:hidden;">
-                        <div style="background:linear-gradient(90deg, #4f46e5, #10b981); width:${Math.min(gp, 100)}%; height:100%; transition:width 0.5s;"></div>
+
+                    <div title="${isOwner ? char.ability : '비공개'}" style="font-size:12px; color:#94a3b8; margin:10px 0 15px 0; padding:8px; background:rgba(0,0,0,0.15); border-radius:8px; text-align: left; line-height: 1.5; border: 1px solid rgba(255,255,255,0.05); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 54px;">
+                        <strong>능력:</strong> ${isOwner ? char.ability : '비공개'}
                     </div>
                 </div>
-                <p style="font-size:13px; color:#94a3b8; margin:5px 0;">능력: ${isOwner ? char.ability : '비공개'}</p>
                 ${buttons}
             </div>
         `;
