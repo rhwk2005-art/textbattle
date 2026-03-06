@@ -21,7 +21,7 @@ module.exports = (supabase) => {
 
             const chat = await groq.chat.completions.create({
                 messages: [{ role: 'user', content: translatePrompt }],
-                model: 'llama-3.3-70b-versatile',
+                model: 'llama-3.1-8b-instant',
                 temperature: 0.3 // 번역의 정확도를 위해 온도를 낮춤
             });
             
